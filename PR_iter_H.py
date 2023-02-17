@@ -57,8 +57,8 @@ def tsp_generate():
         x = np.random.random(3) * x_size + x0
         y = np.random.random(3) * y_size + y0
 
-        " 调整，S和R在一块，远离E  不然无法实现安全容量 但也有可能是fading的问题"
-        x, y = adjust(x, y)     # todo 待测试
+        " 调整"
+        x, y = adjust(x, y)
 
         S_X.append(x[0])
         S_Y.append(y[0])
@@ -73,7 +73,7 @@ def tsp_generate():
         fading = np.triu(fading, 1)  # 保留上三角部分，同时去除对角线元素
         fading += fading.T  # 将上三角"拷贝"到下三角部分
 
-        " 判断有没有大于1 的fading，若有，重新生成 "
+        " 判断 "
         while True:
             detect = np.array(fading)
             bool =  len(np.where(detect > 1)[0])
@@ -86,13 +86,8 @@ def tsp_generate():
 
         Fading.append(fading.tolist())
 
-    # plot(x_num, y_num)
 
-    # now = datetime.now()  # 获得当前时间
-    # timestr = now.strftime("%Y_%m_%d_%H_%M_%S")
-    # _tsp_path = os.path.join("./assets", "{}".format(timestr))
-
-    _tsp_path = './assets/PR_iter_H'      #!  测试用
+    _tsp_path = './assets/PR_iter_H'      
 
     if not os.path.exists(_tsp_path):
         os.makedirs(_tsp_path)
@@ -106,8 +101,6 @@ def tsp_generate():
         f.close()
 
 
-#todo 待测试
-" 调整随机生成的点坐标，确保窃听节点不紧靠消息节点 "
 def adjust(x, y):
     x_copy = copy.copy(x)
     y_copy = copy.copy(y)
@@ -224,7 +217,6 @@ def energy2(variable):
     " 加惩罚 "
     if R_SEC < R_SEC_bound:
         fine = (R_SEC_bound - R_SEC) / R_SEC_bound
-        # fine = -(R_SEC_bound - R_SEC) / R_SEC
     else:
         fine = 0
 
@@ -355,8 +347,6 @@ def pso_func(s, r, e):
         lambda variable: R_SEC_bound-RSEC_alpha(variable)
         ,
     )
-    # pso = PSO(func=energy2, n_dim=variable_num, pop=population, max_iter=max_iteration, lb=lower_bound, ub=upper_bound, w=w_p, c1=c1_p, c2=c2_p, constraint_ueq=constraint_ueq,verbose=True)
-    # pso = PSO(func=energy2, n_dim=variable_num, pop=population, max_iter=max_iteration, lb=lower_bound, ub=upper_bound, w=w_p, c1=c1_p, c2=c2_p,verbose=True)
     pso = PSO(func=energy2, constraint_ueq=constraint_ueq2, n_dim=variable_num, pop=population, max_iter=max_iteration, lb=lower_bound, ub=upper_bound, w=w_p, c1=c1_p, c2=c2_p,verbose=False)
     pso.run(precision=precision_p)
     print('best_x is ', pso.gbest_x, 'best_y is', pso.gbest_y)
@@ -366,11 +356,6 @@ def pso_func(s, r, e):
     return variable
 
 
-''' 
-    若粒子群找不到解，则计算 高度为 H_lb 时，d_su  d_ru 取多少等于 d_se d_re
-    这样一来，只要d_su  d_ru 两个值都较小，则基本可实现安全容量
-    当然前提是 h_sr 比较大，若太小，也可能无解  或者解在其他位置 
-'''
 def plan_B():
     r11 = shannon(zetaA)/shannon(zetaB) * (distance(s, e)**2) - H_lb ** 2   # 消息节点S的取值半径，在此半径内，h_su > h_se
     r1 = math.sqrt(r11)
@@ -410,21 +395,13 @@ def proposed():
     print('\n-----------------------------------本文算法-----------------------------------')
     var, val = pso_func(s, r, e)
 
-
-    " 如果粒子群找不到解，则调整H_lb再来一次，如果还没有就用planB "
     if val == np.inf:
-        temp = H_lb     # 先存起来
-        H_lb = 1    # 调整H_lb        
-        print('--------------------------------One More Time !-------------------------------------\n')
-        var, val = pso_func(s, r, e)       # 再来一次粒子群
-        H_lb = temp     # H_lb改回来
+        temp = H_lb     
+        H_lb = 1     
+        var, val = pso_func(s, r, e)       
+        H_lb = temp     
 
-        ' 如果调整了H_lb，粒子群还找不到解，则用planB '
-        #? planB 的能耗太大了，还是改为planC
         if val == np.inf:
-            # print('--------------------------------Plan B !-------------------------------------\n')
-            # var = plan_B()  
-            print('--------------------------------Plan C !-------------------------------------\n')
             var, val = plan_C()
 
     E_coms = energy(var)    # UAV在当前消息节点消耗的能量
@@ -785,12 +762,6 @@ if __name__ == '__main__':
             tsp_dir = os.path.join(_tsp_path, "test.tsp")  # tsp文件的存放位置
             seq = main.tsp(tsp_dir).values   # SOM 得到的消息节点访问顺序
 
-            # with open('seq3.pk', 'wb') as f:
-            #     pickle.dump((seq, S_X, S_Y, R_X, R_Y, E_X, E_Y, Fading), f)
-
-            # with open('seq1.pk', 'rb') as f:
-            #         seq, S_X, S_Y, R_X, R_Y, E_X, E_Y, Fading = pickle.load(f)
-
             " 获取 S_X 与 route 之间的偏移量"
             initial = S_X.index(min(S_X))     # 最左边的消息节点索引
             offset = np.where(seq == initial)[0][0]     # np.where 返回的是 tuple
@@ -864,16 +835,6 @@ if __name__ == '__main__':
     writer.writerows(E_all3)
     f.close()
 
-    # f = open('N_iter_e_all_50.csv', 'w', encoding='utf-8', newline='')
-    # writer = csv.writer(f)
-    # writer.writerows(E_all)
-    # f.close()
-
-    # f = open('N_iter_rsec_all_50.csv', 'w', encoding='utf-8', newline='')
-    # writer = csv.writer(f)
-    # writer.writerows(RSEC_all)
-    # f.close()
-
 
     # 输出开始结束时间
     end = time.localtime()
@@ -881,8 +842,6 @@ if __name__ == '__main__':
     print(time.strftime('%Y-%m-%d %H:%M:%S', start))
     print('end:')
     print(time.strftime('%Y-%m-%d %H:%M:%S', end))
-
-    print('a')
 
 
 
